@@ -1,0 +1,17 @@
+12:29:58 **** Incremental Build of configuration Debug for project crypto ****
+Info: Internal Builder is used for build
+g++ -O0 -g3 -Wall -c -fmessage-length=0 -o ec-crypt.o "..\\ec-crypt.cc" 
+g++ -O0 -g3 -Wall -c -fmessage-length=0 -o ec-utils.o "..\\ec-utils.cc" 
+ar -r libcrypto.a ec-crypt.o ec-utils.o 
+12:29:59 **** Incremental Build of configuration Debug for project crypto ****
+Info: Internal Builder is used for build
+g++ -O0 -g3 -Wall -c -fmessage-length=0 -o ec-utils.o "..\\ec-utils.cc" 
+g++ -O0 -g3 -Wall -c -fmessage-length=0 -o ec-crypt.o "..\\ec-crypt.cc" 
+ar -r libcrypto.a ec-crypt.o ec-utils.o 
+12:30:00 **** Incremental Build of configuration Debug for project crypto_tool ****
+Info: Internal Builder is used for build
+g++ "-LC:\\Users\\narseev\\Desktop\\security\\new_folder\\crypto\\Debug" -o crypto_tool.exe main.o -lcrypto 
+Info: Nothing to build for crypto
+Info: Nothing to build for crypto_tool
+Info: Nothing to build for crypto
+Info: Nothing to build for crypto_tool

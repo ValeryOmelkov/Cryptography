@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">&#x0A;<refactoring comment="Rename resource &apos;crypto/ECContainer.h&apos; to &apos;ec-container.h&apos;" description="Rename resource &apos;ECContainer.h&apos;" flags="7" id="org.eclipse.ltk.core.refactoring.rename.resource" input="ECContainer.h" name="ec-container.h" stamp="1642050565332" updateReferences="true"/>&#x0A;<refactoring comment="Rename resource &apos;crypto/crypt.cc&apos; to &apos;ec-utils.cc&apos;" description="Rename resource &apos;crypt.cc&apos;" flags="7" id="org.eclipse.ltk.core.refactoring.rename.resource" input="crypt.cc" name="ec-utils.cc" stamp="1642138673384" updateReferences="true"/>
+</session>

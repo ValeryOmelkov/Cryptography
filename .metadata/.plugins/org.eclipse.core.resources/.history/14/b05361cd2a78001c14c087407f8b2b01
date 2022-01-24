@@ -1,0 +1,287 @@
+/*
+ * main.cc
+ *
+ *  Created on: 12 янв. 2022 г.
+ *      Author: narseev
+ */
+
+
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <cstring>
+#include <algorithm>
+
+#include <ec-container.h>
+#include <ec-utils.h>
+#include <ec-crypt.h>
+
+const char * TEST_FILE_NAME = "test.txt";
+const char * TEST_CONTAINER_NAME = "test-container.ecc";
+const uint32_t TEST_BLOCK_SIZE = 32; // в битах
+
+/*
+ * тестовый шифр
+ * блок - 32 бита (4 байта)
+ * раундов - 18
+ * длина ключа - 288 (36 байт)
+ */
+const uint32_t MY_CRYPT_ROUNDS = 18;
+const uint16_t MY_CRYPT_KEY[18] {
+	0x1234, 0x5678, 0x9abc, 0xdef0,
+	0x1122, 0x3344, 0x5566, 0x7788,
+	0x9900, 0xaabb, 0xccdd, 0xeeff,
+	0xa1b2, 0xc3d4, 0xe5f6, 0xaa00,
+	0xabcd, 0xef99
+};
+
+const uint8_t MY_CRYPT_S_BLOCKS[4][16] {
+//	{ 3,  8,  1,  2, 10, 14,  6, 15,  0, 13,  4,  5,  7,  9, 11, 12},
+//	{14,  6, 15,  0, 13,  4,  5,  7,  9, 11, 12,  3,  8,  1,  2, 10},
+//	{ 4,  5,  7,  9, 11, 12,  3,  8,  1,  2, 10, 14,  6, 15,  0, 13},
+//	{12,  3,  8,  1,  2, 10, 14,  6, 15,  0, 13,  4,  5,  7,  9, 11}
+
+	{ 1,  0,  3,  2,  5,  4,  7,  6,  9,  8, 11, 10, 13, 12, 15, 14},
+	{ 1,  0,  3,  2,  5,  4,  7,  6,  9,  8, 11, 10, 13, 12, 15, 14},
+	{ 1,  0,  3,  2,  5,  4,  7,  6,  9,  8, 11, 10, 13, 12, 15, 14},
+	{ 1,  0,  3,  2,  5,  4,  7,  6,  9,  8, 11, 10, 13, 12, 15, 14}
+};
+
+void my_crypt(const uint8_t *src, const uint8_t *key, uint8_t *dst) {
+
+
+	const uint16_t *src_val = reinterpret_cast<const uint16_t*>(src);
+	const uint16_t *key_val = reinterpret_cast<const uint16_t*>(key);
+	uint16_t *dst_val = reinterpret_cast<uint16_t*>(dst);
+
+//	*dst_val = *src_val ^ *key_val;
+
+	uint16_t v = *src_val;
+	*dst_val = 0;
+
+//	for (unsigned i=0; i<4; ++i) {
+////		*dst_val <<= 4;
+//		*dst_val = MY_CRYPT_S_BLOCKS[i][v & 0x0f];
+////		v >>= 4;
+//	}
+
+	*dst_val ^= *key_val;
+
+
+//	const uint16_t *src_val = reinterpret_cast<const uint16_t*>(src);
+//	const uint16_t *key_val = reinterpret_cast<const uint16_t*>(key);
+//	uint16_t *dst_val = reinterpret_cast<uint16_t*>(dst);
+//	uint16_t v = *src_val;
+//	*dst_val = 0;
+//	for (unsigned i=0; i<4; ++i) {
+//		*dst_val <<= 4;
+//		*dst_val |= MY_CRYPT_S_BLOCKS[i][v & 0x0f];
+//		v >>= 4;
+//	}
+//
+//	*dst_val += *key_val;
+//
+//	v = *dst_val;
+//	*dst_val = 0;
+//	for (unsigned i=0; i<4; ++i) {
+//		*dst_val <<= 4;
+//		*dst_val |= MY_CRYPT_S_BLOCKS[i][v & 0x0f];
+//		v >>= 4;
+//	}
+}
+
+void test_create_container() {
+
+	std::ifstream src_file;
+		std::ofstream dst_file;
+
+		src_file.open("test.txt", std::ios::binary | std::ios::ate);
+		size_t filesize = src_file.tellg();
+		src_file.seekg(0);
+
+		dst_file.open("test-container.ecc", std::ios::binary);
+
+		using namespace ec::container;
+		header hdr {};
+		hdr.magic = MAGIC;
+		hdr.version = 1;
+		hdr.header_size = HEADER_SIZE_V1;
+		hdr.v1.payload = RAW;
+		dst_file.write(reinterpret_cast<char*>(&hdr), HEADER_SIZE_V1);
+
+		metadata_v1 md {};
+		uint32_t name_length = strlen(TEST_FILE_NAME);
+		md.length = FILE_METADATA_SIZE_V1_BASE + name_length + 1;
+		md.file.orig_length = filesize;
+		md.file.block_size = TEST_BLOCK_SIZE;
+		md.file.block_count = filesize / (TEST_BLOCK_SIZE / 8);
+		if (filesize % (TEST_BLOCK_SIZE / 8) > 0)
+			md.file.block_count++;
+		auto file_header_pos = dst_file.tellp();
+		dst_file.write(reinterpret_cast<char*>(&md), FILE_METADATA_SIZE_V1_BASE);
+		dst_file.write(TEST_FILE_NAME, name_length + 1);
+
+		uint32_t crc32 = 0;
+		uint32_t crc32_table[256];
+		ec::utils::generate_crc32_lut(crc32_table);
+		for (uint64_t block = 0; block < md.file.block_count; ++block) {
+			uint8_t buffer[TEST_BLOCK_SIZE / 8] {};
+			src_file.read(reinterpret_cast<char*>(&buffer[0]), TEST_BLOCK_SIZE / 8);
+			for (unsigned k=0; k<TEST_BLOCK_SIZE/8; ++k)
+				crc32 = ec::utils::update_crc32(crc32_table, buffer[k], crc32);
+
+			ec::crypt::feistel(
+					reinterpret_cast<const uint8_t*>(&buffer[0]),
+					TEST_BLOCK_SIZE / 8,
+					reinterpret_cast<const uint8_t*>(MY_CRYPT_KEY),
+					sizeof(MY_CRYPT_KEY),
+					MY_CRYPT_ROUNDS,
+					false,
+					[](	const uint8_t *s,
+						const uint8_t *k,
+						uint8_t *d) { my_crypt(s, k, d); },
+					reinterpret_cast<uint8_t*>(&buffer[0]));
+
+			dst_file.write(reinterpret_cast<char*>(&buffer[0]), TEST_BLOCK_SIZE / 8);
+
+
+		}
+
+		md.file.crc32 = crc32;
+		std::cout << "generated CRC: " << std::hex << std::setfill('0') << std::setw(8) << crc32 << std::endl;
+		dst_file.seekp(file_header_pos);
+		dst_file.write(reinterpret_cast<char*>(&md), FILE_METADATA_SIZE_V1_BASE);
+
+		src_file.close();
+		dst_file.close();
+
+}
+
+void test_extract_container() {
+
+	std::ifstream src_file;
+	std::ofstream dst_file;
+
+	using namespace ec::container;
+
+	src_file.open(TEST_CONTAINER_NAME, std::ios::binary);
+	header hdr {};
+	src_file.readsome(reinterpret_cast<char*>(&hdr), sizeof(header));
+	if (hdr.magic != MAGIC) {
+		std::cerr << "файл контейнера кривой" << std::endl;
+		return;
+	}
+	if (hdr.v1.payload != RAW) {
+		std::cerr << "в контейнере лежит что-то не то" << std::endl;
+		return;
+	}
+	src_file.seekg(hdr.header_size);
+
+	uint64_t pos_after_header = src_file.tellg();
+
+	metadata_v1 md {};
+	src_file.readsome(reinterpret_cast<char*>(&md), FILE_METADATA_SIZE_V1_BASE);
+	std::string orig_file_name = "EXTRACTED";
+	char c;
+	while ((c = src_file.get())) {
+		orig_file_name += c;
+	}
+
+	dst_file.open(orig_file_name.c_str(), std::ios::binary);
+	src_file.seekg(pos_after_header + md.length);
+
+	uint32_t crc32 = 0;
+	uint32_t crc32_table[256];
+	ec::utils::generate_crc32_lut(crc32_table);
+
+	while (md.file.orig_length > 0) {
+		uint8_t buffer[TEST_BLOCK_SIZE / 8] {};
+		src_file.read(reinterpret_cast<char*>(&buffer[0]), TEST_BLOCK_SIZE / 8);
+
+		ec::crypt::feistel(
+				reinterpret_cast<const uint8_t*>(&buffer[0]),
+				TEST_BLOCK_SIZE / 8,
+				reinterpret_cast<const uint8_t*>(MY_CRYPT_KEY),
+				sizeof(MY_CRYPT_KEY),
+				MY_CRYPT_ROUNDS,
+				true,
+				[](	const uint8_t *s,
+					const uint8_t *k,
+					uint8_t *d) { my_crypt(s, k, d); },
+				reinterpret_cast<uint8_t*>(&buffer[0]));
+
+		for (unsigned k=0; k<TEST_BLOCK_SIZE/8; ++k)
+			crc32 = ec::utils::update_crc32(crc32_table, buffer[k], crc32);
+
+//		uint64_t bytes_to_write = std::min(4UL, md.file.orig_length);
+		uint64_t bytes_to_write;
+		if (4UL < md.file.orig_length)
+			bytes_to_write = 4UL;
+		else
+			bytes_to_write = md.file.orig_length;
+
+		dst_file.write(reinterpret_cast<char*>(&buffer[0]), bytes_to_write);
+		md.file.orig_length -= bytes_to_write;
+
+	}
+
+	dst_file.close();
+	src_file.close();
+
+	std::cout << "calculated CRC: " << std::hex << std::setfill('0') << std::setw(8) << crc32 << std::endl;
+	std::cout << "read CRC: " << std::hex << std::setfill('0') << std::setw(8) << md.file.crc32 << std::endl;
+
+	if (crc32 != md.file.crc32)
+		std::cout << "WARNING!!! CRC mismatch!" << std::endl;
+
+}
+namespace ec {
+	namespace crypt {
+		extern void gost_34_12_64_key_expand(
+				const uint8_t	*key,
+				uint32_t 		*expand_key);
+	}
+}
+
+void test_magma () {
+
+	uint8_t src_key[] {
+			0xff, 0xfe, 0xfd, 0xfc,
+			0xfb, 0xfa, 0xf9, 0xf8,
+			0xf7, 0xf6, 0xf5, 0xf4,
+			0xf3, 0xf2, 0xf1, 0xf0,
+			0x00, 0x11, 0x22, 0x33,
+			0x44, 0x55, 0x66, 0x77,
+			0x88, 0x99, 0xaa, 0xbb,
+			0xcc, 0xdd, 0xee, 0xff
+	};
+
+	const uint8_t src_m[] {
+		0x10, 0x32, 0x54, 0x76,
+		0x98, 0xba, 0xdc, 0xfe
+	};
+
+	uint8_t dst_m[8];
+
+	ec::crypt::crypt_gost_34_12_64(src_m, src_key, false, dst_m);
+
+	for (unsigned i=0; i<32; ++i){
+		std::cout <<
+				std::hex <<
+				std::setfill('0') <<
+				std::setw(2) <<
+				uint32_t(dst_m[i]) << std::endl;
+	}
+}
+
+int main(int argc, char ** argv) {
+
+	test_create_container();
+	test_extract_container();
+//	test_magma();
+
+
+
+	return 0;
+}
+
