@@ -29,6 +29,14 @@ namespace container {
 		DH_PARAMS,		//
 	};
 
+	enum crypt_type
+	{
+		RAW_CRYPT = 0,
+		ECB_CRYPT,
+		CBC_CRYPT,
+		CTR_CRYPT
+	};
+
 	constexpr uint32_t HEADER_SIZE_V1 = 16;
 	constexpr uint32_t FILE_METADATA_SIZE_V1_BASE = 28;
 	constexpr uint32_t CRC32_POLY = 0xEDB88320; //1110 1101 1011 1000 1000 0011 0010 0000
@@ -43,7 +51,8 @@ namespace container {
 		union {
 			struct {
 				uint8_t payload;
-				uint8_t padding[3];
+				uint8_t crypt;
+				uint8_t padding[2];
 			} v1;
 		};
 	};
